@@ -19,6 +19,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $passwordInput = $_POST['password'] ?? '';
     $email = is_string($emailInput) ? strtolower(trim($emailInput)) : '';
     $password = is_string($passwordInput) ? $passwordInput : '';
+    $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+    $ipAddress = is_string($remoteAddress)
+        && filter_var($remoteAddress, FILTER_VALIDATE_IP) !== false
+            ? $remoteAddress
+            : null;
+
+    $blockedMinutes = login_throttle_minutes($email, $ipAddress);
+    if ($blockedMinutes > 0) {
+        flash('login_error', 'Too many attempts, try again in ' . $blockedMinutes . ' minutes');
+        $_SESSION['_old'] = ['email' => $email];
+        redirect('login.php');
+    }
 
     $statement = db()->prepare(
         'SELECT id, name, email, password_hash, `role` FROM users WHERE email = :email LIMIT 1'
@@ -27,6 +39,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $user = $statement->fetch();
 
     if (!is_array($user) || !password_verify($password, (string) $user['password_hash'])) {
+        record_login_failure($email, $ipAddress);
         flash('login_error', 'Invalid email or password');
         $_SESSION['_old'] = ['email' => $email];
         redirect('login.php');
@@ -49,6 +62,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!session_regenerate_id(true)) {
         throw new RuntimeException('Unable to renew the session after login.');
     }
+
+    clear_login_attempts($email, $ipAddress);
 
     $_SESSION['user_id'] = (int) $user['id'];
     $_SESSION['user_name'] = (string) $user['name'];

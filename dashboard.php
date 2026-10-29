@@ -17,6 +17,15 @@ $lastLogin = $user['last_login_at'] === null
     <link rel="stylesheet" href="assets/auth.css">
 </head>
 <body>
+<nav class="site-nav" aria-label="Main navigation">
+    <a class="brand" href="dashboard.php">SWD Auth</a>
+    <div class="nav-links">
+        <a href="dashboard.php">Dashboard</a>
+        <?php if ($user['role'] === 'admin'): ?>
+            <a href="admin/users.php">Admin</a>
+        <?php endif; ?>
+    </div>
+</nav>
 <main class="auth-shell">
     <section class="auth-card" aria-labelledby="dashboard-title">
         <div class="auth-heading">

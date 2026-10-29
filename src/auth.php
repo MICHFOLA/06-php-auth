@@ -90,10 +90,85 @@ function require_role(string $role): array
 
     if ($role !== 'admin' || $user['role'] !== $role) {
         http_response_code(403);
-        exit('Forbidden');
+        $scriptDirectory = str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '')));
+        $basePath = str_ends_with($scriptDirectory, '/admin') ? '../' : '';
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+            . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            . '<title>Access denied</title><link rel="stylesheet" href="'
+            . e($basePath . 'assets/auth.css') . '">'
+            . '</head><body><main class="auth-shell"><section class="auth-card">'
+            . '<p class="eyebrow">403 | Access denied</p><h1>Restricted area</h1>'
+            . '<p class="subtitle">You do not have permission to view this page.</p>'
+            . '<p class="auth-footer"><a href="' . e($basePath . 'dashboard.php')
+            . '">Return to dashboard</a></p>'
+            . '</section></main></body></html>';
+        exit;
     }
 
     return $user;
+}
+
+function login_throttle_minutes(string $email, ?string $ipAddress): int
+{
+    $remainingSeconds = 0;
+    $db = db();
+
+    $emailAttempt = $db->prepare(
+        'SELECT GREATEST(0, 900 - TIMESTAMPDIFF(SECOND, attempted_at, CURRENT_TIMESTAMP)) '
+        . 'AS remaining_seconds FROM login_attempts '
+        . 'WHERE email = :email AND attempted_at >= CURRENT_TIMESTAMP - INTERVAL 15 MINUTE '
+        . 'ORDER BY attempted_at DESC LIMIT 1 OFFSET 4'
+    );
+    $emailAttempt->execute(['email' => $email]);
+    $emailResult = $emailAttempt->fetchColumn();
+    if ($emailResult !== false) {
+        $remainingSeconds = max($remainingSeconds, (int) $emailResult);
+    }
+
+    if ($ipAddress !== null) {
+        $ipAttempt = $db->prepare(
+            'SELECT GREATEST(0, 900 - TIMESTAMPDIFF(SECOND, attempted_at, CURRENT_TIMESTAMP)) '
+            . 'AS remaining_seconds FROM login_attempts '
+            . 'WHERE ip_address = :ip_address '
+            . 'AND attempted_at >= CURRENT_TIMESTAMP - INTERVAL 15 MINUTE '
+            . 'ORDER BY attempted_at DESC LIMIT 1 OFFSET 4'
+        );
+        $ipAttempt->execute(['ip_address' => $ipAddress]);
+        $ipResult = $ipAttempt->fetchColumn();
+        if ($ipResult !== false) {
+            $remainingSeconds = max($remainingSeconds, (int) $ipResult);
+        }
+    }
+
+    return (int) ceil($remainingSeconds / 60);
+}
+
+function record_login_failure(string $email, ?string $ipAddress): void
+{
+    $statement = db()->prepare(
+        'INSERT INTO login_attempts (email, ip_address) VALUES (:email, :ip_address)'
+    );
+    $statement->execute([
+        'email' => $email,
+        'ip_address' => $ipAddress,
+    ]);
+}
+
+function clear_login_attempts(string $email, ?string $ipAddress): void
+{
+    if ($ipAddress === null) {
+        $statement = db()->prepare('DELETE FROM login_attempts WHERE email = :email');
+        $statement->execute(['email' => $email]);
+        return;
+    }
+
+    $statement = db()->prepare(
+        'DELETE FROM login_attempts WHERE email = :email OR ip_address = :ip_address'
+    );
+    $statement->execute([
+        'email' => $email,
+        'ip_address' => $ipAddress,
+    ]);
 }
 
 function end_session_with_flash(string $message): void
