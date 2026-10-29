@@ -7,7 +7,7 @@ $env = static function (string $name, string $default): string {
     return $value === false ? $default : $value;
 };
 
-define('APP_ENV', $env('APP_ENV', 'development'));
+define('APP_ENV', $env('APP_ENV', 'production'));
 define('DB_HOST', $env('DB_HOST', '127.0.0.1'));
 define('DB_PORT', $env('DB_PORT', '3306'));
 define('DB_NAME', $env('DB_NAME', 'swd_auth'));

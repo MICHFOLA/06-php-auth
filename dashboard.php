@@ -21,6 +21,7 @@ $lastLogin = $user['last_login_at'] === null
     <a class="brand" href="dashboard.php">SWD Auth</a>
     <div class="nav-links">
         <a href="dashboard.php">Dashboard</a>
+        <a href="profile.php">Profile</a>
         <?php if ($user['role'] === 'admin'): ?>
             <a href="admin/users.php">Admin</a>
         <?php endif; ?>
